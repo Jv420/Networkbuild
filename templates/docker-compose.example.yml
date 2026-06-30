@@ -1,0 +1,52 @@
+# Public-safe Docker Compose example for Dynathi Networkbuild
+# Copy to docker-compose.yml locally and customize.
+# Do not commit production secrets or real .env files.
+
+services:
+  uptime-kuma:
+    image: louislam/uptime-kuma:latest
+    container_name: dynathi-uptime-kuma
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    volumes:
+      - uptime-kuma-data:/app/data
+    networks:
+      - dynathi-management
+
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: dynathi-watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --cleanup --schedule "0 0 4 * * *"
+    networks:
+      - dynathi-management
+
+  nginx-proxy-manager:
+    image: jc21/nginx-proxy-manager:latest
+    container_name: dynathi-nginx-proxy-manager
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "81:81"
+      - "443:443"
+    volumes:
+      - npm-data:/data
+      - npm-letsencrypt:/etc/letsencrypt
+    networks:
+      - dynathi-public
+      - dynathi-management
+
+networks:
+  dynathi-public:
+    name: dynathi-public
+  dynathi-management:
+    name: dynathi-management
+    internal: false
+
+volumes:
+  uptime-kuma-data:
+  npm-data:
+  npm-letsencrypt:
