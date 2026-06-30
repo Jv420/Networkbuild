@@ -8,6 +8,8 @@ const os = require('os');
 const app = express();
 const port = Number(process.env.PORT || 3000);
 const appName = process.env.APP_NAME || 'Dynathi Networkbuild';
+const agentToken = process.env.AGENT_TOKEN || 'CHANGE_ME_LONG_RANDOM_TOKEN';
+const agents = new Map();
 
 app.use(helmet({
   contentSecurityPolicy: {
@@ -47,12 +49,46 @@ function getSystemSnapshot() {
   };
 }
 
+function requireAgentAuth(req, res, next) {
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : '';
+
+  if (!token || token !== agentToken || agentToken.includes('CHANGE_ME')) {
+    return res.status(401).json({ ok: false, error: 'Unauthorized agent.' });
+  }
+
+  next();
+}
+
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, service: appName, timestamp: new Date().toISOString() });
 });
 
 app.get('/api/status', (req, res) => {
   res.json(getSystemSnapshot());
+});
+
+app.get('/api/agents', (req, res) => {
+  res.json({
+    ok: true,
+    agents: Array.from(agents.values()).sort((a, b) => a.agentName.localeCompare(b.agentName)),
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.post('/api/agents/report', requireAgentAuth, (req, res) => {
+  const report = req.body || {};
+
+  if (!report.agentName) {
+    return res.status(400).json({ ok: false, error: 'Missing agentName.' });
+  }
+
+  agents.set(report.agentName, {
+    ...report,
+    lastSeen: new Date().toISOString()
+  });
+
+  res.json({ ok: true });
 });
 
 app.post('/api/compute/demo', (req, res) => {
