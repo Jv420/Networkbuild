@@ -1,0 +1,68 @@
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Secrets and keys
+*.key
+*.pem
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+secrets.*
+secret.*
+private.*
+
+# WireGuard real configs
+wg0.conf
+*.conf
+!*.example.conf
+
+# Backups and dumps
+*.backup
+*.bak
+*.dump
+*.sql
+*.sqlite
+*.db
+backups/
+dumps/
+
+# Logs
+*.log
+logs/
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Docker local data
+data/
+volumes/
+
+# Minecraft server data
+world/
+world_nether/
+world_the_end/
+plugins/
+server.properties
+ops.json
+whitelist.json
+banned-players.json
+banned-ips.json
+usercache.json
+
+# Terraform/OpenTofu local state
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
