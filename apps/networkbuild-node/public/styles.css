@@ -76,3 +76,42 @@ input {
   background: #111827;
   color: white;
 }
+
+.agent {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #030712;
+  border: 1px solid #374151;
+}
+
+.agent strong {
+  font-size: 18px;
+}
+
+.agent span {
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.agent small {
+  color: #d1d5db;
+}
+
+.agent.online {
+  border-color: #22c55e;
+}
+
+.agent.online span {
+  color: #86efac;
+}
+
+.agent.offline {
+  border-color: #ef4444;
+}
+
+.agent.offline span {
+  color: #fca5a5;
+}
