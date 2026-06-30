@@ -6,11 +6,46 @@ const { exec } = require('child_process');
 const agentName = process.env.AGENT_NAME || os.hostname();
 const controlPanelUrl = process.env.CONTROL_PANEL_URL || 'http://localhost:3000';
 const agentToken = process.env.AGENT_TOKEN || 'CHANGE_ME';
-const intervalSeconds = Number(process.env.REPORT_INTERVAL_SECONDS || 30);
-const cpuPausePercent = Number(process.env.CPU_PAUSE_PERCENT || 85);
-const ramPausePercent = Number(process.env.RAM_PAUSE_PERCENT || 85);
+const intervalSeconds = clampNumber(process.env.REPORT_INTERVAL_SECONDS, 10, 3600, 30);
+const cpuPausePercent = clampNumber(process.env.CPU_PAUSE_PERCENT, 50, 100, 85);
+const ramPausePercent = clampNumber(process.env.RAM_PAUSE_PERCENT, 50, 100, 85);
+const manageCpuTask = String(process.env.MANAGE_CPU_TASK || 'false') === 'true';
+const liveMode = String(process.env.LIVE_MODE || 'false') === 'true';
 
 let cpuTaskRunning = false;
+let previousCpuTimes = readCpuTimes();
+let lastCpuPercent = 0;
+
+function clampNumber(value, min, max, fallback) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.max(min, Math.min(max, number));
+}
+
+function assertProductionConfig() {
+  const problems = [];
+
+  if (!agentName || agentName.includes('CHANGE_ME')) problems.push('AGENT_NAME is missing or still placeholder.');
+  if (!controlPanelUrl || controlPanelUrl.includes('CHANGE_ME')) problems.push('CONTROL_PANEL_URL is missing or still placeholder.');
+  if (!agentToken || agentToken.includes('CHANGE_ME') || agentToken.length < 24) problems.push('AGENT_TOKEN must be a long random token of at least 24 characters.');
+
+  try {
+    new URL(controlPanelUrl);
+  } catch {
+    problems.push('CONTROL_PANEL_URL is not a valid URL.');
+  }
+
+  if (liveMode && problems.length > 0) {
+    console.error('Dynathi Agent refused to start in LIVE_MODE:');
+    for (const problem of problems) console.error(`- ${problem}`);
+    process.exit(1);
+  }
+
+  if (problems.length > 0) {
+    console.log('Config warnings:');
+    for (const problem of problems) console.log(`- ${problem}`);
+  }
+}
 
 function runCommand(command) {
   return new Promise((resolve) => {
@@ -21,8 +56,8 @@ function runCommand(command) {
     exec(command, { windowsHide: true, timeout: 30000 }, (error, stdout, stderr) => {
       resolve({
         ok: !error,
-        output: String(stdout || '').trim(),
-        error: String(stderr || error?.message || '').trim()
+        output: String(stdout || '').trim().slice(0, 2000),
+        error: String(stderr || error?.message || '').trim().slice(0, 2000)
       });
     });
   });
@@ -41,20 +76,40 @@ function getMemorySnapshot() {
   };
 }
 
+function readCpuTimes() {
+  const cpus = os.cpus();
+  let idle = 0;
+  let total = 0;
+
+  for (const cpu of cpus) {
+    idle += cpu.times.idle;
+    total += cpu.times.user + cpu.times.nice + cpu.times.sys + cpu.times.idle + cpu.times.irq;
+  }
+
+  return { idle, total };
+}
+
 function getCpuSnapshot() {
-  const load = os.loadavg();
-  const cpuCount = os.cpus().length;
-  const estimatedPercent = Math.min(100, Math.round((load[0] / Math.max(cpuCount, 1)) * 100));
+  const current = readCpuTimes();
+  const idleDelta = current.idle - previousCpuTimes.idle;
+  const totalDelta = current.total - previousCpuTimes.total;
+  previousCpuTimes = current;
+
+  if (totalDelta > 0) {
+    lastCpuPercent = Math.max(0, Math.min(100, Math.round(100 - (idleDelta / totalDelta) * 100)));
+  }
 
   return {
-    cpuCount,
-    loadAverage: load,
-    estimatedPercent
+    cpuCount: os.cpus().length,
+    usedPercent: lastCpuPercent,
+    loadAverage: os.loadavg()
   };
 }
 
 async function manageLocalTasks(snapshot) {
-  const tooBusy = snapshot.cpu.estimatedPercent >= cpuPausePercent || snapshot.memory.usedPercent >= ramPausePercent;
+  if (!manageCpuTask) return;
+
+  const tooBusy = snapshot.cpu.usedPercent >= cpuPausePercent || snapshot.memory.usedPercent >= ramPausePercent;
 
   if (tooBusy && cpuTaskRunning) {
     console.log('High load detected. Stopping optional CPU task.');
@@ -71,7 +126,7 @@ async function manageLocalTasks(snapshot) {
 
 async function report(snapshot) {
   try {
-    const response = await fetch(`${controlPanelUrl}/api/agents/report`, {
+    const response = await fetch(`${controlPanelUrl.replace(/\/$/, '')}/api/agents/report`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -81,11 +136,12 @@ async function report(snapshot) {
     });
 
     if (!response.ok) {
-      console.log(`Report failed: HTTP ${response.status}`);
+      const body = await response.text().catch(() => '');
+      console.log(`Report failed: HTTP ${response.status} ${body.slice(0, 200)}`);
       return;
     }
 
-    console.log(`Reported ${agentName} at ${snapshot.timestamp}`);
+    console.log(`Reported ${agentName} | CPU ${snapshot.cpu.usedPercent}% | RAM ${snapshot.memory.usedPercent}%`);
   } catch (error) {
     console.log(`Report error: ${error.message}`);
   }
@@ -101,7 +157,8 @@ async function tick() {
     memory: getMemorySnapshot(),
     cpu: getCpuSnapshot(),
     tasks: {
-      cpuTaskRunning
+      cpuTaskRunning,
+      manageCpuTask
     },
     timestamp: new Date().toISOString()
   };
@@ -110,12 +167,12 @@ async function tick() {
   await report(snapshot);
 }
 
+assertProductionConfig();
+
 console.log(`Dynathi Agent starting: ${agentName}`);
 console.log(`Control panel: ${controlPanelUrl}`);
-
-if (agentToken === 'CHANGE_ME') {
-  console.log('WARNING: AGENT_TOKEN is still CHANGE_ME. Set a long random token in .env.');
-}
+console.log(`Live mode: ${liveMode ? 'enabled' : 'disabled'}`);
+console.log(`CPU task manager: ${manageCpuTask ? 'enabled' : 'disabled'}`);
 
 setInterval(tick, intervalSeconds * 1000);
 tick();
