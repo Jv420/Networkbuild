@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dynathi Networkbuild</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <p class="badge">Dynathi Infrastructure</p>
+      <h1>Networkbuild Node Dashboard</h1>
+      <p>
+        Public-safe Node.js starter voor status, monitoring en veilige opt-in compute tests.
+      </p>
+    </section>
+
+    <section class="grid">
+      <article class="card">
+        <h2>Status</h2>
+        <pre id="status">Status laden...</pre>
+        <button id="refreshStatus">Status verversen</button>
+      </article>
+
+      <article class="card warning">
+        <h2>Opt-in compute demo</h2>
+        <p>
+          Deze demo gebruikt tijdelijk CPU nadat jij op start klikt. Dit is geen verborgen browser-mining en geen echte crypto-miner.
+        </p>
+        <label>
+          Seconden
+          <input id="computeSeconds" type="number" min="1" max="30" value="5" />
+        </label>
+        <button id="startCompute">Start compute demo</button>
+        <pre id="computeResult">Nog niet gestart.</pre>
+      </article>
+    </section>
+  </main>
+
+  <script src="/main.js"></script>
+</body>
+</html>
