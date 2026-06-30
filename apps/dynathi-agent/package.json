@@ -1,0 +1,16 @@
+{
+  "name": "dynathi-agent",
+  "version": "0.1.0",
+  "description": "Dynathi Compute Agent for Windows/Linux nodes. Reports status to a control panel and manages local tasks safely.",
+  "main": "src/agent.js",
+  "scripts": {
+    "start": "node src/agent.js",
+    "check": "node src/check-config.js"
+  },
+  "keywords": ["dynathi", "agent", "compute", "monitoring"],
+  "author": "Dynathi",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.4.7"
+  }
+}
